@@ -55,96 +55,95 @@ export function AdminDashboard() {
   ]
 
   return (
-    <div className="space-y-6" data-macaly="admin-dashboard">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-800" data-macaly="dashboard-title">Dashboard</h1>
-        <Button variant="outline" className="text-sm">
+    <div className="space-y-3 lg:space-y-6" data-macaly="admin-dashboard">
+      {/* Header */}
+      <div className="flex flex-col gap-3">
+        <h1 className="text-xl lg:text-3xl font-bold text-gray-800" data-macaly="dashboard-title">Dashboard</h1>
+        <Button variant="outline" size="sm" className="text-xs lg:text-sm w-fit">
           Refresh Data
         </Button>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-6">
         <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <MessageCircle className="w-6 h-6 text-blue-600" />
+          <CardContent className="p-3 lg:p-6">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              <div className="p-1.5 lg:p-3 bg-blue-100 rounded-lg flex-shrink-0">
+                <MessageCircle className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
               </div>
-              <div>
-                <p className="text-sm text-gray-600">New Requests</p>
-                <p className="text-2xl font-bold text-gray-800" data-macaly="new-requests-count">{stats.newRequests}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-600 truncate">New Requests</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-800" data-macaly="new-requests-count">{stats.newRequests}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-yellow-100 rounded-lg">
-                <Clock className="w-6 h-6 text-yellow-600" />
+          <CardContent className="p-3 lg:p-6">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              <div className="p-1.5 lg:p-3 bg-yellow-100 rounded-lg flex-shrink-0">
+                <Clock className="w-4 h-4 lg:w-6 lg:h-6 text-yellow-600" />
               </div>
-              <div>
-                <p className="text-sm text-gray-600">In Progress</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.inProgress}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-purple-100 rounded-lg">
-                <Wrench className="w-6 h-6 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Open PMs</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.openPMs}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-600 truncate">In Progress</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.inProgress}</p>
               </div>
             </div>
           </CardContent>
         </Card>
 
         <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-6">
-            <div className="flex items-center space-x-3">
-              <div className="p-3 bg-green-100 rounded-lg">
-                <Users className="w-6 h-6 text-green-600" />
+          <CardContent className="p-3 lg:p-6">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              <div className="p-1.5 lg:p-3 bg-purple-100 rounded-lg flex-shrink-0">
+                <Wrench className="w-4 h-4 lg:w-6 lg:h-6 text-purple-600" />
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Occupied Rooms</p>
-                <p className="text-2xl font-bold text-gray-800">{stats.occupiedRooms}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-600 truncate">Open PMs</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.openPMs}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="hover:shadow-lg transition-shadow">
+          <CardContent className="p-3 lg:p-6">
+            <div className="flex items-center space-x-2 lg:space-x-3">
+              <div className="p-1.5 lg:p-3 bg-green-100 rounded-lg flex-shrink-0">
+                <Bed className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-gray-600 truncate">Occupied</p>
+                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.occupiedRooms}</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Recent Requests and Room Status */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-6">
         {/* Recent Requests */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MessageCircle className="w-5 h-5" />
-              <span>Recent Requests</span>
-            </CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base lg:text-xl">Recent Requests</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-2 lg:space-y-3">
               {recentRequests.map((request) => (
-                <div key={request.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <span className="font-medium">Room {request.roomNumber}</span>
-                      <span className="text-gray-600">{request.message}</span>
+                <div key={request.id} className="p-2 lg:p-3 bg-gray-50 rounded-lg">
+                  <div className="flex flex-col gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-xs lg:text-sm truncate">{request.guestName}</span>
+                      <Badge className={cn('text-xs px-1.5 py-0.5', statusConfig[request.status].color)}>
+                        {statusConfig[request.status].label}
+                      </Badge>
                     </div>
+                    <p className="text-xs text-gray-600 break-words">{request.message}</p>
+                    <p className="text-xs text-gray-500">Room {request.roomNumber}</p>
                   </div>
-                  <Badge className={cn('text-xs', statusConfig[request.status].color)}>
-                    {statusConfig[request.status].label}
-                  </Badge>
                 </div>
               ))}
             </div>
@@ -153,25 +152,29 @@ export function AdminDashboard() {
 
         {/* Room Status */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Bed className="w-5 h-5" />
-              <span>Room Status</span>
-            </CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base lg:text-xl">Room Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-2 lg:space-y-3">
               {roomStatusList.map((room) => (
-                <div key={room.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                  <div>
-                    <span className="font-medium">Room {room.number}</span>
-                    {room.guestName && (
-                      <span className="text-gray-600 ml-2">- {room.guestName}</span>
-                    )}
+                <div key={room.id} className="p-2 lg:p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 lg:space-x-3 min-w-0 flex-1">
+                      <div className="w-6 h-6 lg:w-8 lg:h-8 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
+                        <span className="text-xs lg:text-sm font-medium">{room.number}</span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs lg:text-sm font-medium truncate">Room {room.number}</p>
+                        {room.guestName && (
+                          <p className="text-gray-600 text-xs truncate">- {room.guestName}</p>
+                        )}
+                      </div>
+                    </div>
+                    <Badge className={cn('text-xs px-1.5 py-0.5 flex-shrink-0', roomStatusConfig[room.status].color)}>
+                      {roomStatusConfig[room.status].label}
+                    </Badge>
                   </div>
-                  <Badge className={cn('text-xs', roomStatusConfig[room.status].color)}>
-                    {roomStatusConfig[room.status].label}
-                  </Badge>
                 </div>
               ))}
             </div>
@@ -179,21 +182,21 @@ export function AdminDashboard() {
         </Card>
       </div>
 
-      {/* Open PMs Section */}
+      {/* Preventive Maintenance */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Wrench className="w-5 h-5" />
-            <span>Open PMs</span>
-          </CardTitle>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base lg:text-xl">Preventive Maintenance</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 lg:gap-4">
             {openPMs.map((pm, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <span className="font-medium">{pm.room}</span>
-                <Badge className={cn('text-xs', roomStatusConfig[pm.status as keyof typeof roomStatusConfig].color)}>
-                  {roomStatusConfig[pm.status as keyof typeof roomStatusConfig].label}
+              <div key={index} className="p-3 lg:p-4 border border-gray-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertCircle className="w-3 h-3 lg:w-4 lg:h-4 text-yellow-600 flex-shrink-0" />
+                  <span className="text-xs lg:text-sm font-medium truncate">{pm.room}</span>
+                </div>
+                <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                  Scheduled
                 </Badge>
               </div>
             ))}

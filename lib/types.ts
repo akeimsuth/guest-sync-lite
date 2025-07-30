@@ -1,4 +1,4 @@
-export type UserRole = 'guest' | 'housekeeper' | 'admin'
+export type UserRole = 'housekeeper' | 'admin'
 
 export type RequestStatus = 'new' | 'in_progress' | 'completed'
 
@@ -10,7 +10,6 @@ export interface User {
   role: UserRole
   name: string
   phone?: string
-  roomNumber?: string
   assignedRooms?: string[]
 }
 
@@ -22,13 +21,12 @@ export interface ServiceRequest {
   phone: string
   message: string
   status: RequestStatus
-  priority: 'low' | 'medium' | 'high'
+  priority: 'low' | 'medium' | 'high' | 'urgent'
   category: string
   createdAt: Date
   assignedTo?: string
   completedAt?: Date
   rating?: number
-  response?: string
 }
 
 export interface Room {
@@ -38,8 +36,8 @@ export interface Room {
   guestName?: string
   checkIn?: Date
   checkOut?: Date
-  assignedHousekeeper?: string
   lastCleaned?: Date
+  assignedHousekeeper?: string
   notes?: string
 }
 
@@ -48,4 +46,23 @@ export interface HousekeeperStats {
   avgResponseTime: number
   avgRating: number
   completedToday: number
+}
+
+export interface Message {
+  id: string
+  senderId: string
+  senderName: string
+  senderRole: UserRole
+  content: string
+  timestamp: Date
+  isRead: boolean
+}
+
+export interface ChatRoom {
+  id: string
+  name: string
+  participants: string[]
+  messages: Message[]
+  lastMessage?: Message
+  unreadCount: number
 }

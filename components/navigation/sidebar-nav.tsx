@@ -10,10 +10,13 @@ import {
   Mail,
   Settings,
   LogOut,
-  Building
+  Building,
+  MessageSquare,
+  X
 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 
 interface NavItem {
   href: string
@@ -42,24 +45,34 @@ const navItems: NavItem[] = [
     roles: ['admin', 'housekeeper']
   },
   {
+    href: '/chat',
+    label: 'Chat',
+    icon: MessageSquare,
+    roles: ['admin', 'housekeeper']
+  },
+  {
     href: '/maintenance',
     label: 'Maintenance',
     icon: Wrench,
     roles: ['admin']
   },
-  {
-    href: '/messages',
-    label: 'Messages',
-    icon: Mail,
-    roles: ['admin', 'housekeeper']
-  }
+  // {
+  //   href: '/messages',
+  //   label: 'Messages',
+  //   icon: Mail,
+  //   roles: ['admin', 'housekeeper']
+  // }
 ]
 
-export function SidebarNav() {
+interface SidebarNavProps {
+  onClose?: () => void
+}
+
+export function SidebarNav({ onClose }: SidebarNavProps) {
   const { user, signOut } = useAuth()
   const pathname = usePathname()
 
-  if (!user || user.role === 'guest') {
+  if (!user) {
     return null
   }
 
@@ -67,16 +80,32 @@ export function SidebarNav() {
     item.roles.includes(user.role)
   )
 
+  const handleNavClick = () => {
+    if (onClose) {
+      onClose()
+    }
+  }
+
   return (
-    <div className="w-64 bg-slate-800 text-white min-h-screen flex flex-col" data-macaly="sidebar-navigation">
-      {/* Logo */}
-      <div className="p-6 border-b border-slate-700">
+    <div className="w-full lg:w-64 bg-slate-800 text-white min-h-screen flex flex-col" data-macaly="sidebar-navigation">
+      {/* Header with close button for mobile */}
+      <div className="p-4 lg:p-6 border-b border-slate-700 flex items-center justify-between">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
             <Building className="w-5 h-5 text-slate-800" />
           </div>
           <span className="text-xl font-semibold">GuestSync</span>
         </div>
+        {onClose && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            className="lg:hidden p-2 text-white hover:bg-slate-700"
+          >
+            <X className="w-5 h-5" />
+          </Button>
+        )}
       </div>
 
       {/* Navigation */}
@@ -90,6 +119,7 @@ export function SidebarNav() {
               <li key={item.href}>
                 <Link
                   href={item.href}
+                  onClick={handleNavClick}
                   className={cn(
                     'flex items-center space-x-3 px-4 py-3 rounded-lg transition-colors',
                     isActive 

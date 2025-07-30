@@ -2,7 +2,6 @@
 
 import { AuthProvider } from '@/components/auth-provider'
 import { AppLayout } from '@/components/layouts/app-layout'
-import { GuestView } from '@/components/views/guest-view'
 import { StaffView } from '@/components/views/staff-view'
 import { useAuth } from '@/components/auth-provider'
 import { Toaster } from '@/components/ui/sonner'
@@ -24,9 +23,9 @@ function AppContent() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Welcome to GuestSync</h1>
-          <p className="text-gray-600">Hotel Request Management System</p>
+        <div className="text-center px-4">
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-800 mb-4">Welcome to GuestSync</h1>
+          <p className="text-gray-600 text-sm lg:text-base">Hotel Request Management System</p>
         </div>
       </div>
     )
@@ -34,7 +33,7 @@ function AppContent() {
 
   return (
     <AppLayout>
-      {user.role === 'guest' ? <GuestView /> : <StaffView />}
+      <StaffView />
     </AppLayout>
   )
 }

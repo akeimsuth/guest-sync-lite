@@ -2,16 +2,16 @@
 
 import { AuthProvider } from '@/components/auth-provider'
 import { AppLayout } from '@/components/layouts/app-layout'
-import { GuestRequestsView } from '@/components/guest/requests-view'
+import { RoomsView } from '@/components/views/rooms-view'
 import { Toaster } from '@/components/ui/sonner'
 
-export default function GuestRequestsPage() {
+export default function RoomsPage() {
   return (
     <AuthProvider>
       <AppLayout>
-        <GuestRequestsView />
+        <RoomsView />
       </AppLayout>
       <Toaster />
     </AuthProvider>
   )
-}
+} 
