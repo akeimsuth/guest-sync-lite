@@ -1,427 +1,753 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useAuth } from '@/components/auth-provider'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
+  Plus, 
+  Grid3X3, 
+  List, 
+  Users, 
+  UserPlus, 
+  Building2, 
   Bed, 
-  Users,
-  Clock,
-  CheckCircle2,
-  AlertCircle,
-  Search,
-  Filter,
-  Plus,
   Calendar,
-  Phone
+  MapPin,
+  DollarSign,
+  Star,
+  Wrench,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  Timer
 } from 'lucide-react'
-import { mockRooms } from '@/lib/mock-data'
-import { Room, RoomStatus } from '@/lib/types'
+import { Room, User, CreateRoomData } from '@/lib/types'
+import { mockRooms, mockUsers } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
-
-const roomStatusConfig = {
-  occupied: { color: 'bg-green-500 text-white', label: 'Occupied', icon: Users },
-  vacant: { color: 'bg-gray-500 text-white', label: 'Vacant', icon: Bed },
-  maintenance: { color: 'bg-red-500 text-white', label: 'Maintenance', icon: AlertCircle },
-  cleaning: { color: 'bg-blue-500 text-white', label: 'Cleaning', icon: Clock }
-}
 
 export function RoomsView() {
   const { user } = useAuth()
   const [rooms, setRooms] = useState<Room[]>(mockRooms)
-  const [filteredRooms, setFilteredRooms] = useState<Room[]>(mockRooms)
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showAssignDialog, setShowAssignDialog] = useState(false)
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
 
-  useEffect(() => {
-    let filtered = rooms
+  // Filter rooms based on search and filters
+  const filteredRooms = rooms.filter(room => {
+    const matchesSearch = room.number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         room.guestName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         room.notes?.toLowerCase().includes(searchTerm.toLowerCase())
+    
+    const matchesStatus = statusFilter === 'all' || room.status === statusFilter
+    const matchesType = typeFilter === 'all' || room.type === typeFilter
+    
+    return matchesSearch && matchesStatus && matchesType
+  })
 
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(room =>
-        room.number.includes(searchTerm) ||
-        (room.guestName && room.guestName.toLowerCase().includes(searchTerm.toLowerCase()))
-      )
+  // Get housekeepers for assignment
+  const housekeepers = mockUsers.filter(user => user.role === 'housekeeper')
+
+  // Calculate occupancy rate
+  const occupiedRooms = rooms.filter(room => room.status === 'occupied').length
+  const occupancyRate = Math.round((occupiedRooms / rooms.length) * 100)
+
+  // Calculate cleaning statistics
+  const cleaningStats = {
+    currentlyCleaning: rooms.filter(room => room.status === 'cleaning').length,
+    averageCleaningTime: Math.round(
+      rooms
+        .filter(room => room.cleaningDuration)
+        .reduce((sum, room) => sum + (room.cleaningDuration || 0), 0) / 
+        Math.max(rooms.filter(room => room.cleaningDuration).length, 1)
+    ),
+    onTimeCleanings: rooms.filter(room => 
+      room.cleaningDuration && room.cleaningDuration <= 90
+    ).length,
+    delayedCleanings: rooms.filter(room => 
+      room.cleaningDuration && room.cleaningDuration > 90
+    ).length
+  }
+
+  // Handle room creation
+  const handleCreateRoom = (roomData: CreateRoomData) => {
+    const newRoom: Room = {
+      id: `room-${Date.now()}`,
+      ...roomData,
+      status: 'vacant',
+      lastCleaned: new Date(),
+      isActive: true,
+      amenities: roomData.amenities || [],
+      cleaningHistory: []
     }
+    
+    setRooms(prev => [newRoom, ...prev])
+    setShowCreateDialog(false)
+  }
 
-    // Status filter
-    if (statusFilter !== 'all') {
-      filtered = filtered.filter(room => room.status === statusFilter)
+  // Handle staff assignment
+  const handleAssignStaff = (roomId: string, housekeeperId: string) => {
+    setRooms(prev => prev.map(room => 
+      room.id === roomId 
+        ? { ...room, assignedHousekeeper: housekeeperId }
+        : room
+    ))
+    setShowAssignDialog(false)
+    setSelectedRoom(null)
+  }
+
+  // Handle room status update
+  const handleStatusUpdate = (roomId: string, newStatus: Room['status']) => {
+    setRooms(prev => prev.map(room => {
+      if (room.id !== roomId) return room
+      
+      const updatedRoom = { ...room, status: newStatus }
+      
+      // Handle cleaning time tracking
+      if (newStatus === 'cleaning' && room.status !== 'cleaning') {
+        // Starting cleaning
+        updatedRoom.cleaningStartTime = new Date()
+        updatedRoom.cleaningEndTime = undefined
+        updatedRoom.cleaningDuration = undefined
+        
+        // Add to cleaning history
+        const newCleaningRecord = {
+          id: `clean-${roomId}-${Date.now()}`,
+          roomId: roomId,
+          housekeeperId: room.assignedHousekeeper || '',
+          housekeeperName: housekeepers.find(h => h.id === room.assignedHousekeeper)?.name || 'Unknown',
+          startTime: new Date(),
+          status: 'in_progress' as const,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+        
+        updatedRoom.cleaningHistory = [...(room.cleaningHistory || []), newCleaningRecord]
+      } else if (room.status === 'cleaning' && newStatus !== 'cleaning') {
+        // Finishing cleaning
+        if (room.cleaningStartTime) {
+          const endTime = new Date()
+          const duration = Math.round((endTime.getTime() - room.cleaningStartTime.getTime()) / (1000 * 60))
+          
+          updatedRoom.cleaningEndTime = endTime
+          updatedRoom.cleaningDuration = duration
+          updatedRoom.lastCleaned = endTime
+          
+          // Update cleaning history
+          if (updatedRoom.cleaningHistory && updatedRoom.cleaningHistory.length > 0) {
+            const lastRecord = updatedRoom.cleaningHistory[updatedRoom.cleaningHistory.length - 1]
+            if (lastRecord.status === 'in_progress') {
+              lastRecord.endTime = endTime
+              lastRecord.duration = duration
+              lastRecord.status = 'completed'
+              lastRecord.updatedAt = endTime
+            }
+          }
+        }
+      }
+      
+      return updatedRoom
+    }))
+  }
+
+  // Get status configuration
+  const getStatusConfig = (status: Room['status']) => {
+    const configs = {
+      occupied: { label: 'Occupied', color: 'bg-blue-100 text-blue-800', icon: Users },
+      vacant: { label: 'Vacant', color: 'bg-green-100 text-green-800', icon: CheckCircle2 },
+      cleaning: { label: 'Cleaning', color: 'bg-yellow-100 text-yellow-800', icon: Clock },
+      maintenance: { label: 'Maintenance', color: 'bg-red-100 text-red-800', icon: Wrench },
+      out_of_order: { label: 'Out of Order', color: 'bg-gray-100 text-gray-800', icon: AlertCircle }
     }
+    return configs[status] || configs.vacant
+  }
 
-    setFilteredRooms(filtered)
-  }, [rooms, searchTerm, statusFilter])
+  // Get type configuration
+  const getTypeConfig = (type: Room['type']) => {
+    const configs = {
+      standard: { label: 'Standard', color: 'bg-gray-100 text-gray-800' },
+      deluxe: { label: 'Deluxe', color: 'bg-blue-100 text-blue-800' },
+      suite: { label: 'Suite', color: 'bg-purple-100 text-purple-800' },
+      accessible: { label: 'Accessible', color: 'bg-green-100 text-green-800' }
+    }
+    return configs[type] || configs.standard
+  }
 
-  const handleStatusChange = (roomId: string, newStatus: RoomStatus) => {
-    setRooms(prev => 
-      prev.map(room => 
-        room.id === roomId 
-          ? { ...room, status: newStatus }
-          : room
-      )
+  // Get assigned housekeeper name
+  const getAssignedHousekeeperName = (housekeeperId?: string) => {
+    if (!housekeeperId) return 'Unassigned'
+    const housekeeper = housekeepers.find(h => h.id === housekeeperId)
+    return housekeeper?.name || 'Unknown'
+  }
+
+  // Get cleaning duration display
+  const getCleaningDurationDisplay = (room: Room) => {
+    if (room.status === 'cleaning' && room.cleaningStartTime) {
+      const now = new Date()
+      const duration = Math.round((now.getTime() - room.cleaningStartTime.getTime()) / (1000 * 60))
+      return `${duration} min`
+    } else if (room.cleaningDuration) {
+      return `${room.cleaningDuration} min`
+    }
+    return null
+  }
+
+  if (user?.role !== 'admin') {
+    return (
+      <div className="text-center py-8">
+        <AlertCircle className="w-12 h-12 mx-auto mb-4 text-red-500" />
+        <h2 className="text-xl font-semibold text-gray-800 mb-2">Access Denied</h2>
+        <p className="text-gray-600">Only administrators can access room management.</p>
+      </div>
     )
-    toast.success(`Room ${rooms.find(r => r.id === roomId)?.number} status updated`)
   }
-
-  const stats = {
-    total: rooms.length,
-    occupied: rooms.filter(r => r.status === 'occupied').length,
-    vacant: rooms.filter(r => r.status === 'vacant').length,
-    maintenance: rooms.filter(r => r.status === 'maintenance').length,
-    cleaning: rooms.filter(r => r.status === 'cleaning').length
-  }
-
-  const occupancyRate = Math.round((stats.occupied / stats.total) * 100)
 
   return (
-    <div className="space-y-3 lg:space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-3">
-        <h1 className="text-xl lg:text-3xl font-bold text-gray-800">Room Management</h1>
-        <div className="flex flex-col sm:flex-row gap-2">
-          <Button size="sm" className="text-xs lg:text-sm w-fit">
-            <Plus className="w-3 h-3 lg:w-4 lg:h-4 mr-1" />
-            Add Room
-          </Button>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={viewMode === 'grid' ? 'default' : 'outline'}
-              onClick={() => setViewMode('grid')}
-              className="text-xs lg:text-sm"
-            >
-              Grid
-            </Button>
-            <Button
-              size="sm"
-              variant={viewMode === 'list' ? 'default' : 'outline'}
-              onClick={() => setViewMode('list')}
-              className="text-xs lg:text-sm"
-            >
-              List
-            </Button>
-          </div>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">Room Management</h1>
+          <p className="text-gray-600 text-sm lg:text-base">Manage hotel rooms, assignments, and status</p>
+        </div>
+        <div className="flex gap-2">
+          <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+            <DialogTrigger asChild>
+              <Button className="text-xs lg:text-sm">
+                <Plus className="w-4 h-4 mr-2" />
+                Create Room
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Create New Room</DialogTitle>
+              </DialogHeader>
+              <CreateRoomForm onSubmit={handleCreateRoom} />
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 lg:gap-6">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-3 lg:p-6">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="p-1.5 lg:p-3 bg-blue-100 rounded-lg flex-shrink-0">
-                <Bed className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-600 truncate">Total</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.total}</p>
+      {/* Statistics */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm text-gray-600">Total Rooms</p>
+                <p className="text-xl font-bold">{rooms.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-3 lg:p-6">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="p-1.5 lg:p-3 bg-green-100 rounded-lg flex-shrink-0">
-                <Users className="w-4 h-4 lg:w-6 lg:h-6 text-green-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-600 truncate">Occupied</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.occupied}</p>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Users className="w-5 h-5 text-green-600" />
+              <div>
+                <p className="text-sm text-gray-600">Occupied</p>
+                <p className="text-xl font-bold">{occupiedRooms}</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-3 lg:p-6">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="p-1.5 lg:p-3 bg-gray-100 rounded-lg flex-shrink-0">
-                <Bed className="w-4 h-4 lg:w-6 lg:h-6 text-gray-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-600 truncate">Vacant</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.vacant}</p>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Star className="w-5 h-5 text-yellow-600" />
+              <div>
+                <p className="text-sm text-gray-600">Occupancy Rate</p>
+                <p className="text-xl font-bold">{occupancyRate}%</p>
               </div>
             </div>
           </CardContent>
         </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-3 lg:p-6">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="p-1.5 lg:p-3 bg-blue-100 rounded-lg flex-shrink-0">
-                <Clock className="w-4 h-4 lg:w-6 lg:h-6 text-blue-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-600 truncate">Cleaning</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.cleaning}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardContent className="p-3 lg:p-6">
-            <div className="flex items-center space-x-2 lg:space-x-3">
-              <div className="p-1.5 lg:p-3 bg-red-100 rounded-lg flex-shrink-0">
-                <AlertCircle className="w-4 h-4 lg:w-6 lg:h-6 text-red-600" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-gray-600 truncate">Maintenance</p>
-                <p className="text-lg lg:text-2xl font-bold text-gray-800">{stats.maintenance}</p>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center space-x-2">
+              <Timer className="w-5 h-5 text-purple-600" />
+              <div>
+                <p className="text-sm text-gray-600">Avg. Cleaning</p>
+                <p className="text-xl font-bold">{cleaningStats.averageCleaningTime} min</p>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Occupancy Rate */}
+      {/* Cleaning Status Overview */}
       <Card>
-        <CardContent className="p-4 lg:p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-semibold text-gray-800">Occupancy Rate</h3>
-              <p className="text-sm text-gray-600">{stats.occupied} of {stats.total} rooms occupied</p>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Timer className="w-5 h-5" />
+            <span>Cleaning Status Overview</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-blue-600">{cleaningStats.currentlyCleaning}</div>
+              <div className="text-sm text-gray-600">Currently Cleaning</div>
             </div>
-            <div className="text-right">
-              <div className="text-2xl lg:text-3xl font-bold text-blue-600">{occupancyRate}%</div>
-              <div className="w-24 h-2 bg-gray-200 rounded-full mt-2">
-                <div 
-                  className="h-2 bg-blue-600 rounded-full transition-all duration-300"
-                  style={{ width: `${occupancyRate}%` }}
-                />
-              </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-green-600">{cleaningStats.onTimeCleanings}</div>
+              <div className="text-sm text-gray-600">On Time</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-red-600">{cleaningStats.delayedCleanings}</div>
+              <div className="text-sm text-gray-600">Delayed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-purple-600">{cleaningStats.averageCleaningTime}</div>
+              <div className="text-sm text-gray-600">Avg. Time (min)</div>
             </div>
           </div>
         </CardContent>
       </Card>
 
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center space-x-2 text-base lg:text-xl">
-            <Filter className="w-4 h-4 lg:w-5 lg:h-5" />
-            <span>Filters</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder="Search rooms..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 text-sm"
-              />
-            </div>
-            
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="text-sm">
-                <SelectValue placeholder="Filter by status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="occupied">Occupied</SelectItem>
-                <SelectItem value="vacant">Vacant</SelectItem>
-                <SelectItem value="cleaning">Cleaning</SelectItem>
-                <SelectItem value="maintenance">Maintenance</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Filters and View Controls */}
+      <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <div className="flex flex-wrap gap-2">
+          <Input
+            placeholder="Search rooms..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full sm:w-64"
+          />
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="occupied">Occupied</SelectItem>
+              <SelectItem value="vacant">Vacant</SelectItem>
+              <SelectItem value="cleaning">Cleaning</SelectItem>
+              <SelectItem value="maintenance">Maintenance</SelectItem>
+              <SelectItem value="out_of_order">Out of Order</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={typeFilter} onValueChange={setTypeFilter}>
+            <SelectTrigger className="w-full sm:w-40">
+              <SelectValue placeholder="Type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="standard">Standard</SelectItem>
+              <SelectItem value="deluxe">Deluxe</SelectItem>
+              <SelectItem value="suite">Suite</SelectItem>
+              <SelectItem value="accessible">Accessible</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant={viewMode === 'grid' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('grid')}
+          >
+            <Grid3X3 className="w-4 h-4 mr-2" />
+            Grid
+          </Button>
+          <Button
+            variant={viewMode === 'list' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setViewMode('list')}
+          >
+            <List className="w-4 h-4 mr-2" />
+            List
+          </Button>
+        </div>
+      </div>
 
       {/* Rooms Display */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base lg:text-xl">
-            Rooms ({filteredRooms.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredRooms.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              <Bed className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p>No rooms found matching your filters.</p>
-            </div>
-          ) : viewMode === 'grid' ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 lg:gap-4">
-              {filteredRooms.map((room) => {
-                const StatusIcon = roomStatusConfig[room.status].icon
-                
-                return (
-                  <div key={room.id} className="p-3 lg:p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="space-y-3">
-                      {/* Room Header */}
-                      <div className="flex items-center justify-between">
-                        <div className="w-10 h-10 bg-gray-200 rounded flex items-center justify-center">
-                          <span className="text-sm font-medium">{room.number}</span>
-                        </div>
-                        <Badge className={cn('text-xs px-1.5 py-0.5', roomStatusConfig[room.status].color)}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {roomStatusConfig[room.status].label}
-                        </Badge>
-                      </div>
+      <Tabs value={viewMode} className="w-full">
+        <TabsContent value="grid" className="mt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredRooms.map((room) => (
+              <RoomCard
+                key={room.id}
+                room={room}
+                onStatusUpdate={handleStatusUpdate}
+                onAssignStaff={(room) => {
+                  setSelectedRoom(room)
+                  setShowAssignDialog(true)
+                }}
+                getStatusConfig={getStatusConfig}
+                getTypeConfig={getTypeConfig}
+                getAssignedHousekeeperName={getAssignedHousekeeperName}
+                getCleaningDurationDisplay={getCleaningDurationDisplay}
+              />
+            ))}
+          </div>
+        </TabsContent>
+        
+        <TabsContent value="list" className="mt-0">
+          <div className="space-y-2">
+            {filteredRooms.map((room) => (
+              <RoomListItem
+                key={room.id}
+                room={room}
+                onStatusUpdate={handleStatusUpdate}
+                onAssignStaff={(room) => {
+                  setSelectedRoom(room)
+                  setShowAssignDialog(true)
+                }}
+                getStatusConfig={getStatusConfig}
+                getTypeConfig={getTypeConfig}
+                getAssignedHousekeeperName={getAssignedHousekeeperName}
+                getCleaningDurationDisplay={getCleaningDurationDisplay}
+              />
+            ))}
+          </div>
+        </TabsContent>
+      </Tabs>
 
-                      {/* Room Details */}
-                      <div className="space-y-2">
-                        <h3 className="font-medium text-sm">Room {room.number}</h3>
-                        {room.guestName && (
-                          <p className="text-xs text-gray-600 truncate">Guest: {room.guestName}</p>
-                        )}
-                        {room.checkIn && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Calendar className="w-3 h-3" />
-                            Check-in: {new Date(room.checkIn).toLocaleDateString()}
-                          </div>
-                        )}
-                        {room.checkOut && (
-                          <div className="flex items-center gap-1 text-xs text-gray-500">
-                            <Calendar className="w-3 h-3" />
-                            Check-out: {new Date(room.checkOut).toLocaleDateString()}
-                          </div>
-                        )}
-                        {room.assignedHousekeeper && (
-                          <p className="text-xs text-gray-500">HK: {room.assignedHousekeeper}</p>
-                        )}
-                      </div>
-
-                      {/* Action Buttons */}
-                      <div className="flex gap-2 flex-wrap">
-                        {room.status === 'occupied' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusChange(room.id, 'cleaning')}
-                            className="text-xs px-2 py-1 h-8"
-                          >
-                            <Clock className="w-3 h-3 mr-1" />
-                            Clean
-                          </Button>
-                        )}
-                        {room.status === 'cleaning' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleStatusChange(room.id, 'vacant')}
-                            className="text-xs px-2 py-1 h-8 bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Ready
-                          </Button>
-                        )}
-                        {room.status === 'vacant' && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => handleStatusChange(room.id, 'maintenance')}
-                            className="text-xs px-2 py-1 h-8"
-                          >
-                            <AlertCircle className="w-3 h-3 mr-1" />
-                            Maintenance
-                          </Button>
-                        )}
-                        {room.status === 'maintenance' && (
-                          <Button
-                            size="sm"
-                            onClick={() => handleStatusChange(room.id, 'vacant')}
-                            className="text-xs px-2 py-1 h-8 bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Fixed
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+      {/* Staff Assignment Dialog */}
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Staff to Room {selectedRoom?.number}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">Current Assignment</label>
+              <p className="text-sm text-gray-600">
+                {selectedRoom ? getAssignedHousekeeperName(selectedRoom.assignedHousekeeper) : ''}
+              </p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {filteredRooms.map((room) => {
-                const StatusIcon = roomStatusConfig[room.status].icon
-                
-                return (
-                  <div key={room.id} className="p-3 lg:p-4 border rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3 min-w-0 flex-1">
-                        <div className="w-8 h-8 bg-gray-200 rounded flex items-center justify-center flex-shrink-0">
-                          <span className="text-sm font-medium">{room.number}</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h3 className="font-medium text-sm">Room {room.number}</h3>
-                          {room.guestName && (
-                            <p className="text-xs text-gray-600 truncate">Guest: {room.guestName}</p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <Badge className={cn('text-xs px-1.5 py-0.5', roomStatusConfig[room.status].color)}>
-                          <StatusIcon className="w-3 h-3 mr-1" />
-                          {roomStatusConfig[room.status].label}
-                        </Badge>
-                        <div className="flex gap-2">
-                          {room.status === 'occupied' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStatusChange(room.id, 'cleaning')}
-                              className="text-xs px-2 py-1 h-8"
-                            >
-                              <Clock className="w-3 h-3 mr-1" />
-                              Clean
-                            </Button>
-                          )}
-                          {room.status === 'cleaning' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleStatusChange(room.id, 'vacant')}
-                              className="text-xs px-2 py-1 h-8 bg-green-600 hover:bg-green-700"
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Ready
-                            </Button>
-                          )}
-                          {room.status === 'vacant' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleStatusChange(room.id, 'maintenance')}
-                              className="text-xs px-2 py-1 h-8"
-                            >
-                              <AlertCircle className="w-3 h-3 mr-1" />
-                              Maintenance
-                            </Button>
-                          )}
-                          {room.status === 'maintenance' && (
-                            <Button
-                              size="sm"
-                              onClick={() => handleStatusChange(room.id, 'vacant')}
-                              className="text-xs px-2 py-1 h-8 bg-green-600 hover:bg-green-700"
-                            >
-                              <CheckCircle2 className="w-3 h-3 mr-1" />
-                              Fixed
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
-              })}
+            <div>
+              <label className="text-sm font-medium">Assign to</label>
+              <Select onValueChange={(value) => handleAssignStaff(selectedRoom!.id, value)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select housekeeper" />
+                </SelectTrigger>
+                <SelectContent>
+                  {housekeepers.map((housekeeper) => (
+                    <SelectItem key={housekeeper.id} value={housekeeper.id}>
+                      {housekeeper.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
+// Room Card Component
+function RoomCard({ 
+  room, 
+  onStatusUpdate, 
+  onAssignStaff, 
+  getStatusConfig, 
+  getTypeConfig, 
+  getAssignedHousekeeperName,
+  getCleaningDurationDisplay
+}: {
+  room: Room
+  onStatusUpdate: (roomId: string, status: Room['status']) => void
+  onAssignStaff: (room: Room) => void
+  getStatusConfig: (status: Room['status']) => any
+  getTypeConfig: (type: Room['type']) => any
+  getAssignedHousekeeperName: (housekeeperId?: string) => string
+  getCleaningDurationDisplay: (room: Room) => string | null
+}) {
+  const statusConfig = getStatusConfig(room.status)
+  const typeConfig = getTypeConfig(room.type)
+  const StatusIcon = statusConfig.icon
+  const cleaningDuration = getCleaningDurationDisplay(room)
+
+  return (
+    <Card className="hover:shadow-lg transition-shadow">
+      <CardHeader className="pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Room {room.number}</CardTitle>
+          <Badge className={cn('text-xs', statusConfig.color)}>
+            <StatusIcon className="w-3 h-3 mr-1" />
+            {statusConfig.label}
+          </Badge>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={cn('text-xs', typeConfig.color)}>
+            {typeConfig.label}
+          </Badge>
+          <span className="text-xs text-gray-500">Floor {room.floor}</span>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2">
+          {room.guestName && (
+            <div className="flex items-center gap-2 text-sm">
+              <Users className="w-4 h-4 text-gray-500" />
+              <span className="font-medium">{room.guestName}</span>
             </div>
           )}
-        </CardContent>
-      </Card>
-    </div>
+          <div className="flex items-center gap-2 text-sm">
+            <Bed className="w-4 h-4 text-gray-500" />
+            <span>Capacity: {room.capacity}</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <DollarSign className="w-4 h-4 text-gray-500" />
+            <span>${room.price}/night</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm">
+            <UserPlus className="w-4 h-4 text-gray-500" />
+            <span className="truncate">{getAssignedHousekeeperName(room.assignedHousekeeper)}</span>
+          </div>
+          {cleaningDuration && (
+            <div className="flex items-center gap-2 text-sm">
+              <Timer className="w-4 h-4 text-purple-500" />
+              <span className="font-medium text-purple-600">{cleaningDuration}</span>
+            </div>
+          )}
+          {room.checkInDate && room.checkOutDate && (
+            <div className="flex items-center gap-2 text-sm">
+              <Calendar className="w-4 h-4 text-gray-500" />
+              <span className="text-xs">
+                {new Date(room.checkInDate).toLocaleDateString()} - {new Date(room.checkOutDate).toLocaleDateString()}
+              </span>
+            </div>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => onAssignStaff(room)}
+            className="flex-1 text-xs"
+          >
+            <UserPlus className="w-3 h-3 mr-1" />
+            Assign
+          </Button>
+          <Select value={room.status} onValueChange={(value: Room['status']) => onStatusUpdate(room.id, value)}>
+            <SelectTrigger className="flex-1 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="vacant">Vacant</SelectItem>
+              <SelectItem value="cleaning">Cleaning</SelectItem>
+              <SelectItem value="maintenance">Maintenance</SelectItem>
+              <SelectItem value="out_of_order">Out of Order</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Room List Item Component
+function RoomListItem({ 
+  room, 
+  onStatusUpdate, 
+  onAssignStaff, 
+  getStatusConfig, 
+  getTypeConfig, 
+  getAssignedHousekeeperName,
+  getCleaningDurationDisplay
+}: {
+  room: Room
+  onStatusUpdate: (roomId: string, status: Room['status']) => void
+  onAssignStaff: (room: Room) => void
+  getStatusConfig: (status: Room['status']) => any
+  getTypeConfig: (type: Room['type']) => any
+  getAssignedHousekeeperName: (housekeeperId?: string) => string
+  getCleaningDurationDisplay: (room: Room) => string | null
+}) {
+  const statusConfig = getStatusConfig(room.status)
+  const typeConfig = getTypeConfig(room.type)
+  const StatusIcon = statusConfig.icon
+  const cleaningDuration = getCleaningDurationDisplay(room)
+
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <div className="text-center">
+              <div className="text-lg font-bold">Room {room.number}</div>
+              <div className="text-xs text-gray-500">Floor {room.floor}</div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Badge className={cn('text-xs', statusConfig.color)}>
+                  <StatusIcon className="w-3 h-3 mr-1" />
+                  {statusConfig.label}
+                </Badge>
+                <Badge variant="outline" className={cn('text-xs', typeConfig.color)}>
+                  {typeConfig.label}
+                </Badge>
+              </div>
+              {room.guestName && (
+                <div className="text-sm font-medium">{room.guestName}</div>
+              )}
+              <div className="text-xs text-gray-500">
+                Capacity: {room.capacity} • ${room.price}/night
+              </div>
+              {cleaningDuration && (
+                <div className="text-xs text-gray-500">
+                  Cleaning: <span className="font-medium text-purple-600">{cleaningDuration}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="text-right text-sm">
+              <div className="font-medium">{getAssignedHousekeeperName(room.assignedHousekeeper)}</div>
+              <div className="text-gray-500">Assigned</div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onAssignStaff(room)}
+              >
+                <UserPlus className="w-3 h-3 mr-1" />
+                Assign
+              </Button>
+              <Select value={room.status} onValueChange={(value: Room['status']) => onStatusUpdate(room.id, value)}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="vacant">Vacant</SelectItem>
+                  <SelectItem value="cleaning">Cleaning</SelectItem>
+                  <SelectItem value="maintenance">Maintenance</SelectItem>
+                  <SelectItem value="out_of_order">Out of Order</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+// Create Room Form Component
+function CreateRoomForm({ onSubmit }: { onSubmit: (data: CreateRoomData) => void }) {
+  const [formData, setFormData] = useState<CreateRoomData>({
+    number: '',
+    type: 'standard',
+    floor: 1,
+    capacity: 2,
+    price: 120,
+    amenities: []
+  })
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    onSubmit(formData)
+  }
+
+  const handleAmenityChange = (amenity: string, checked: boolean) => {
+    if (checked) {
+      setFormData(prev => ({ ...prev, amenities: [...prev.amenities, amenity] }))
+    } else {
+      setFormData(prev => ({ ...prev, amenities: prev.amenities.filter(a => a !== amenity) }))
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Room Number</label>
+          <Input
+            value={formData.number}
+            onChange={(e) => setFormData(prev => ({ ...prev, number: e.target.value }))}
+            placeholder="101"
+            required
+          />
+        </div>
+        <div>
+          <label className="text-sm font-medium">Floor</label>
+          <Input
+            type="number"
+            value={formData.floor}
+            onChange={(e) => setFormData(prev => ({ ...prev, floor: parseInt(e.target.value) }))}
+            min="1"
+            required
+          />
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="text-sm font-medium">Type</label>
+          <Select value={formData.type} onValueChange={(value: Room['type']) => setFormData(prev => ({ ...prev, type: value }))}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="standard">Standard</SelectItem>
+              <SelectItem value="deluxe">Deluxe</SelectItem>
+              <SelectItem value="suite">Suite</SelectItem>
+              <SelectItem value="accessible">Accessible</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-sm font-medium">Capacity</label>
+          <Input
+            type="number"
+            value={formData.capacity}
+            onChange={(e) => setFormData(prev => ({ ...prev, capacity: parseInt(e.target.value) }))}
+            min="1"
+            max="6"
+            required
+          />
+        </div>
+      </div>
+      
+      <div>
+        <label className="text-sm font-medium">Price per Night</label>
+        <Input
+          type="number"
+          value={formData.price}
+          onChange={(e) => setFormData(prev => ({ ...prev, price: parseInt(e.target.value) }))}
+          min="50"
+          step="10"
+          required
+        />
+      </div>
+      
+      <div>
+        <label className="text-sm font-medium">Amenities</label>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          {['WiFi', 'TV', 'AC', 'Private Bathroom', 'Mini Bar', 'Kitchen', 'Balcony', 'Ocean View'].map((amenity) => (
+            <label key={amenity} className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                checked={formData.amenities.includes(amenity)}
+                onChange={(e) => handleAmenityChange(amenity, e.target.checked)}
+                className="rounded"
+              />
+              <span className="text-sm">{amenity}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+      
+      <div className="flex gap-2 pt-4">
+        <Button type="submit" className="flex-1">Create Room</Button>
+      </div>
+    </form>
   )
 } 

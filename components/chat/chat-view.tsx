@@ -21,6 +21,7 @@ export function ChatView() {
 
     const newMessage: Message = {
       id: `msg-${Date.now()}`,
+      roomId: selectedRoom.id,
       senderId: user.id,
       senderName: user.name,
       senderRole: user.role,
@@ -29,11 +30,11 @@ export function ChatView() {
       isRead: false
     }
 
-    const updatedRooms = rooms.map(room => {
+    const updatedRooms = rooms?.map(room => {
       if (room.id === selectedRoom.id) {
         return {
           ...room,
-          messages: [...room.messages, newMessage],
+          messages: [...(room?.messages || []), newMessage],
           lastMessage: newMessage,
           unreadCount: room.unreadCount + 1
         }
